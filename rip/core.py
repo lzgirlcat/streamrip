@@ -43,6 +43,7 @@ from streamrip.media import (
     Tracklist,
     Video,
     YoutubeVideo,
+    Mix
 )
 from streamrip.utils import TQDM_DEFAULT_THEME, set_progress_bar_theme
 
@@ -72,6 +73,7 @@ Media = Union[
     Type[Track],
     Type[Label],
     Type[Video],
+    type[Mix]
 ]
 MEDIA_CLASS: Dict[str, Media] = {
     "album": Album,
@@ -80,6 +82,7 @@ MEDIA_CLASS: Dict[str, Media] = {
     "track": Track,
     "label": Label,
     "video": Video,
+    "mix": Mix
 }
 
 DB_PATH_MAP = {"downloads": DB_PATH, "failed_downloads": FAILED_DB_PATH}

@@ -240,7 +240,9 @@ class TrackMetadata:
             self._mod_title(track.get("version"), None)
             self.tracknumber = track.get("trackNumber", 1)
             self.discnumber = track.get("volumeNumber", 1)
-            self.artist = track.get("artist", {}).get("name")
+            artist_or_none = track.get("artist") or (
+                artists[0] if len(artists := track.get("artists", [])) != 0 else {})
+            self.artist = artist_or_none.get("name")
             self._get_tidal_quality(track["audioQuality"])
 
         elif self.__source == "deezer":

@@ -1948,6 +1948,172 @@ class Playlist(Tracklist, Media):
         return f"{self.name} ({len(self)} tracks)"
 
 
+class Mix(Tracklist, Media):
+    """Represents a downloadable Mix.
+
+    Usage:
+    >>> mx = Mix.from_api(resp, client)
+    >>> mx.load_meta()
+    >>> mx.download()
+    """
+
+    id = None
+    downloaded_ids: set = set()
+
+    def __init__(self, client: Client, **kwargs):
+        """Create a new Mix object.
+
+        :param client: a qopy client instance
+        :param album_id: Mix id returned by qobuz api
+        :type album_id: Union[str, int]
+        :param kwargs:
+        """
+        self.name: str
+        self.client = client
+        logger.debug(kwargs)
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+        # to improve from_api method speed
+        if kwargs.get("load_on_init"):
+            self.load_meta()
+
+        self.loaded = False
+
+    @classmethod
+    def from_api(cls, resp: dict, client: Client):
+        """Return a Mix object from an API response.
+
+        :param resp: a single search result entry of a mix
+        :type resp: dict
+        :param client:
+        :type client: Client
+        """
+        info = cls._parse_get_resp(resp, client)
+        return cls(client, **info)
+
+    def load_meta(self, **kwargs):
+        """Send a request to fetch the tracklist from the api.
+
+        :param new_tracknumbers: replace the tracknumber with Mix position
+        :type new_tracknumbers: bool
+        :param kwargs:
+        """
+        self.meta = self.client.get(self.id, media_type="mix")
+        logger.debug(self.meta)
+        self._load_tracks(**kwargs)
+        self.loaded = True
+
+    def _load_tracks(self, new_tracknumbers: bool = True, **kwargs):
+        """Parse the tracklist returned by the API.
+
+        :param new_tracknumbers: replace tracknumber tag with mix position
+        :type new_tracknumbers: bool
+        """
+        if self.client.source == "tidal":
+            actual_meta = self.meta['rows'][0]['modules'][0]['mix']
+            self.name = actual_meta["title"]
+            self.image = actual_meta['images']["MEDIUM"]
+            self.creator = safe_get(actual_meta, "subTitle", default="TIDAL")
+
+            tracklist = self.meta['rows'][1]['modules'][0]['pagedList']['items']
+
+            def meta_args(track):
+                return {
+                    "track": track,
+                    "source": self.client.source,
+                }
+
+        else:
+            raise NotImplementedError
+
+        self.tracktotal = len(tracklist)
+
+        for track in tracklist:
+            meta = TrackMetadata(track=track, source=self.client.source)
+            cover_urls = get_cover_urls(track["album"], self.client.source)
+            cover_url = (
+                cover_urls[kwargs.get("embed_cover_size", "large")]
+                if cover_urls is not None
+                else None
+            )
+
+            self.append(
+                Track(
+                    self.client,
+                    id=track.get("id"),
+                    meta=meta,
+                    cover_url=cover_url,
+                    part_of_tracklist=True,
+                )
+            )
+
+        logger.debug("Loaded %d tracks from mix %s", len(self), self.name)
+
+    def _prepare_download(self, parent_folder: str = "StreamripDownloads", **kwargs):
+        if kwargs.get("folder_format"):
+            fname = clean_filename(self.name, kwargs.get("restrict_filenames", False))
+            self.folder = os.path.join(parent_folder, fname)
+        else:
+            self.folder = parent_folder
+
+        # Used for safe concurrency with tracknumbers instead of an object
+        # level that stores an index
+        self.__indices = iter(range(1, len(self) + 1))
+        self.download_message()
+
+    def _download_item(self, item: Media, **kwargs):
+        assert isinstance(item, Track)
+
+        kwargs["parent_folder"] = self.folder
+        if self.client.source == "soundcloud":
+            item.load_meta()
+
+        if kwargs.get("set_mix_to_album", False):
+            item.meta.album = self.name
+            item.meta.albumartist = self.creator
+
+        if kwargs.get("new_tracknumbers", True):
+            item.meta.tracknumber = next(self.__indices)
+            item.meta.discnumber = 1
+
+        item.download(**kwargs)
+
+        item.tag(
+            embed_cover=kwargs.get("embed_cover", True),
+            exclude_tags=kwargs.get("exclude_tags"),
+        )
+
+        self.downloaded_ids.add(item.id)
+
+    @property
+    def title(self) -> str:
+        """Get the title.
+
+        :rtype: str
+        """
+        return self.name
+
+    def __repr__(self) -> str:
+        """Return a string representation of this Mix object.
+
+        :rtype: str
+        """
+        return f"<Mix: {self.name}>"
+
+    def tag(self):
+        """Raise NotImplementedError."""
+        raise NotImplementedError
+
+    def __str__(self) -> str:
+        """Return a readable string representation of this track.
+
+        :rtype: str
+        """
+        return f"{self.name} ({len(self)} tracks)"
+
+
 class Artist(Tracklist, Media):
     """Represents a downloadable artist.
 

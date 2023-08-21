@@ -998,10 +998,16 @@ class TidalClient(Client):
 
         :param item_id:
         :type item_id: str
-        :param media_type: track, album, playlist, or video.
+        :param media_type: track, album, playlist, mix, or video.
         :type media_type: str
         :rtype: dict
         """
+        if media_type == "mix":
+            item =  self._api_request("pages/mix", {"mixId": item_id, 
+                                                    "deviceType": "BROWSER"})
+            logger.debug(item)
+            return item
+
         url = f"{media_type}s/{item_id}"
         item = self._api_request(url)
         if media_type in ("playlist", "album"):

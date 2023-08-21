@@ -170,7 +170,7 @@ DEEZER_FORMATS = {
     "FLAC",
 }
 # video only for tidal
-MEDIA_TYPES = {"track", "album", "artist", "label", "playlist", "video"}
+MEDIA_TYPES = {"track", "album", "artist", "label", "playlist", "video", "mix"}
 
 # used to homogenize cover size keys
 COVER_SIZES = ("thumbnail", "small", "large", "original")
